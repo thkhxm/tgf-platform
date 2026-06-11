@@ -1,0 +1,13 @@
+go 1.26.0
+
+toolchain go1.26.4
+
+use (
+	./core
+	./tiktok
+)
+
+// 本地联编：core 尚未发布 core/v0.1.0 tag 前，平台 module 对它的 require
+// 统一在 workspace 层 replace 到本地目录（不污染各平台 go.mod）。
+// 发布 tag 后可删除本行。
+replace github.com/thkhxm/tgf-platform/core v0.1.0 => ./core
