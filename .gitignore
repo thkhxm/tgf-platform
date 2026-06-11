@@ -35,3 +35,9 @@ Thumbs.db
 # ===== 运行/测试副产物（框架 init 落盘） =====
 log/
 *.log
+
+# ===== 文档抓取留底（研究产物，不入发布仓库；doc 引用 URL+日期在代码注释中） =====
+.docs/
+.doccache/
+*.bundle.js
+jina-*

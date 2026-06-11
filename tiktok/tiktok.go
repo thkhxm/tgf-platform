@@ -20,8 +20,8 @@ import (
 const PlatformName = "tiktok"
 
 // DefaultBaseURL TikTok 开放接口域名。
-// 文档：https://developers.tiktok.com/doc/oauth-user-access-token-management（2026-06-11 拉取，
-// developers.tiktok.com 拒绝本环境直连抓取，内容经搜索引擎对官方页的渲染摘录确认，下同）。
+// 文档：https://developers.tiktok.com/doc/minis-server-apis-overview（2026-06-11
+// 经本机代理直连拉取正文核对，本包所有 endpoint 引注同此方式，下同）。
 const DefaultBaseURL = "https://open.tiktokapis.com"
 
 // 默认值。
@@ -36,10 +36,11 @@ const (
 	DefaultWebhookMaxBodySize = 1 << 20
 )
 
-// 编译期断言：TikTok 实现的合约子集（PaymentProvider 见 doc.go 的 NEEDS-DOC 说明）。
+// 编译期断言：TikTok 实现的合约子集（ContentAuditProvider 不实现，见 doc.go）。
 var (
 	_ platform.Provider        = (*TikTok)(nil)
 	_ platform.LoginProvider   = (*TikTok)(nil)
+	_ platform.PaymentProvider = (*TikTok)(nil)
 	_ platform.WebhookVerifier = (*TikTok)(nil)
 )
 

@@ -30,18 +30,20 @@ const (
 	// oauthTokenPath OAuth v2 用户 access token 接口。
 	//
 	// 文档：https://developers.tiktok.com/doc/oauth-user-access-token-management
-	// （2026-06-11 拉取；developers.tiktok.com 拒绝本环境直连抓取，协议内容经
-	// 搜索引擎对该官方页的渲染摘录确认，下同）
+	// （2026-06-11 经本机代理直连拉取正文核对，本文件各 endpoint 引注同此方式，下同）
 	//   - POST https://open.tiktokapis.com/v2/oauth/token/
 	//   - Content-Type: application/x-www-form-urlencoded
 	//   - 请求参数：client_key / client_secret / code / grant_type=authorization_code
 	//     / redirect_uri（Login Kit 必填，须与请求 code 时一致）
-	//   - 成功响应（平铺 JSON）：access_token / expires_in（86400，单位秒）/ open_id
-	//     / refresh_expires_in / refresh_token / scope / token_type（"Bearer"）
+	//   - 成功响应（平铺 JSON）：access_token / expires_in（86400，单位秒，24h 有效）
+	//     / open_id / refresh_expires_in（31536000，365 天）/ refresh_token / scope
+	//     / token_type（"Bearer"）
 	//   - 错误响应（平铺 JSON）：error / error_description / log_id
 	//
 	// TikTok Minis（小游戏）流程：同一 endpoint、同一结构，仅省略 redirect_uri
-	// 与 code_verifier。
+	// 与 code_verifier（官方原文 "OAuth for TikTok Minis has the same structure as
+	// User Access Token Management, with the exception of omitting redirect_uri and
+	// code_verifier in the request body parameters for fetching an access token"）。
 	// 文档：https://developers.tiktok.com/doc/minis-oauth（2026-06-11 拉取）
 	//
 	// 关键坑（历史实战教训）：
@@ -56,14 +58,15 @@ const (
 
 	// userInfoPath 用户信息接口（补取 union_id 用）。
 	//
-	// 文档：https://developers.tiktok.com/doc/tiktok-api-v2-get-user-info
-	// （2026-06-11 拉取）
+	// 文档：https://developers.tiktok.com/doc/minis-user-data（2026-06-11 拉取；
+	// 与 https://developers.tiktok.com/doc/tiktok-api-v2-get-user-info 同一接口）
 	//   - GET https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id
 	//   - 鉴权：Authorization: Bearer <用户 access token>（act.* 前缀；必须是
 	//     用户 token，不是 client token——同上关键坑）
 	//   - 响应：{"data":{"user":{...请求的 fields...}},"error":{"code":"ok",
 	//     "message":"","log_id":"..."}}，error.code 非 "ok" 即业务失败
-	//   - union_id 字段需应用获得相应 user.info scope 授权
+	//   - open_id / union_id 均需 user.info.basic scope（TikTok Minis 目前仅
+	//     支持 user.info.basic 与 user.info.open_id 两个 scope）
 	userInfoPath = "/v2/user/info/"
 )
 

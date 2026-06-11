@@ -49,24 +49,34 @@ const webhookSignatureHeader = "TikTok-Signature"
 // 业务 handler 可正常再读。
 //
 // 验签算法
-// 文档：https://developers.tiktok.com/doc/webhooks-verification（2026-06-11 拉取；
-// developers.tiktok.com 拒绝本环境直连抓取，算法内容经搜索引擎对该官方页的
-// 渲染摘录确认——其中「t 与 payload 以 "." 拼接」这一细节务必在真凭据端到端
-// 验证时复核）：
+// 文档：https://developers.tiktok.com/doc/webhooks-verification（2026-06-11 经
+// 本机代理直连拉取正文核对。其中「t 与 payload 以 "." 拼接」已经官方正文逐字
+// 确认——原文 "signed_payload can be created by concatenating: The timestamp as
+// a string / The character . / The actual JSON payload (request body)"，HMAC 为
+// "An HMAC with the SHA256 hash function is computed with your client_secret as
+// the key and your signed_payload string as the message"）：
 //
 //  1. header 形如 Tiktok-Signature: t=1633174587,s=1849...e66 ——按 "," 拆元素、
 //     按 "=" 拆前缀与值；t 是 Unix 秒时间戳，s 是签名（64 位小写十六进制）；
 //  2. signed_payload = <t 原始字符串> + "." + <HTTP 请求原始 body>；
 //  3. 期望签名 = HMAC-SHA256(key = client_secret, signed_payload) 的十六进制；
 //  4. 先常量时间比对签名；签名有效再校验时间戳新鲜度（时间戳参与签名，攻击者
-//     无法单独篡改）——过旧/超前超出窗口即拒绝。
+//     无法单独篡改，官方原文 "Since this timestamp is part of the signed payload,
+//     an attacker cannot change the timestamp without invalidating the
+//     signature"）——过旧/超前超出窗口即拒绝（窗口大小官方留给应用决定）。
 //
 // 防重放
-// 官方投递语义是 at-least-once（同一事件可能多次送达，
-// 文档：https://developers.tiktok.com/doc/webhooks-overview ，2026-06-11 拉取），
-// header 中无独立 nonce——以签名值本身作去重 key（签名对「时间戳+payload」唯一），
-// 窗口为 2×WebhookTolerance。单机默认内存去重；多实例部署必须经
-// Config.WebhookSeen 注入共享存储实现。
+// 官方投递语义是 at-least-once（同一事件可能多次送达并以指数退避重投最长 72h，
+// 业务必须幂等处理；文档：https://developers.tiktok.com/doc/webhooks-overview ，
+// 2026-06-11 拉取），header 中无独立 nonce——以签名值本身作去重 key（签名对
+// 「时间戳+payload」唯一），窗口为 2×WebhookTolerance。单机默认内存去重；
+// 多实例部署必须经 Config.WebhookSeen 注入共享存储实现。
+//
+// 注意：官方未明示失败重投（未收到 200 时）是否重新签名/更新时间戳。本去重在
+// 验签通过即记账——若业务 handler 验签后处理失败（非 200）且平台重投沿用原
+// 签名，重投会被当重放拦截。对"处理可能失败、依赖平台重投兜底"的业务，应经
+// Config.WebhookSeen 注入与业务消费状态联动的去重实现（仅对已成功消费的签名
+// 判重），或对账兜底（VerifyPayment 主动查单）。
 //
 // 注意：本方法只完成「请求确实来自 TikTok 且非重放」的校验。业务发货前还须按
 // 官方要求核对事件内容（如 minis.trade_order.redeem.success 的 order_id 与本地
