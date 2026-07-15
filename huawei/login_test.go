@@ -355,9 +355,14 @@ func TestVerifyLoginJWKSCacheAndRotation(t *testing.T) {
 // TestVerifyLoginJWKSTTLExpire 校验 TTL 到期后重新拉取。
 func TestVerifyLoginJWKSTTLExpire(t *testing.T) {
 	srv, _, hits := newIDTokenServer(t)
-	h := newIDTokenHuawei(t, srv.URL, func(c *Config) { c.JWKSCacheTTL = time.Nanosecond })
+	h := newIDTokenHuawei(t, srv.URL, func(c *Config) { c.JWKSCacheTTL = time.Minute })
+	currentTime := time.Now()
+	h.now = func() time.Time { return currentTime }
 
 	for i := 0; i < 2; i++ {
+		if i > 0 {
+			currentTime = currentTime.Add(h.cfg.JWKSCacheTTL)
+		}
 		if _, err := h.VerifyLogin(context.Background(), signJWT(t, testKid, "RS256", baseIDClaims(nil))); err != nil {
 			t.Fatalf("第 %d 次 VerifyLogin 失败: %v", i+1, err)
 		}
