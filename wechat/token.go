@@ -103,13 +103,13 @@ func (w *WeChat) accessToken(ctx context.Context) (string, error) {
 	}
 	if !resp.OK() {
 		return "", errs.New(PlatformName, opStableToken, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.AccessToken == "" || body.ExpiresIn <= 0 {
 		return "", errs.New(PlatformName, opStableToken, "",
-			"应答缺少 access_token / expires_in 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 access_token / expires_in 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 

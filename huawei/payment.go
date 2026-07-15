@@ -103,7 +103,7 @@ func (f *flexInt64) UnmarshalJSON(data []byte) error {
 	}
 	v, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		return fmt.Errorf("无法解析为整数: %s", truncate(string(data), 64))
+		return fmt.Errorf("无法解析为整数: %s", httpx.SafeBodySummary(data))
 	}
 	*f = flexInt64(v)
 	return nil
@@ -232,7 +232,7 @@ func (h *Huawei) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opVerifyPayment, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -244,7 +244,7 @@ func (h *Huawei) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 	}
 	if dataStr == "" {
 		return nil, errs.New(PlatformName, opVerifyPayment, "",
-			"应答缺少购买数据字段: "+truncate(resp.String(), 256))
+			"应答缺少购买数据字段: "+resp.SafeSummary())
 	}
 
 	// 官方硬要求：用 IAP 公钥对购买数据 JSON 字符串验签（"该字段原样参与签名"——

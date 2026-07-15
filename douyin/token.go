@@ -82,14 +82,14 @@ func (d *Douyin) accessToken(ctx context.Context) (string, error) {
 	}
 	if !resp.OK() {
 		return "", errs.New(PlatformName, opGetAccessToken, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if tr.Data.AccessToken == "" || tr.Data.ExpiresIn <= 0 {
 		// 200 且 err_no==0 却缺关键字段——按官方文档这不该发生，视为协议异常。
 		return "", errs.New(PlatformName, opGetAccessToken, "",
-			"应答缺少 data.access_token / data.expires_in 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 data.access_token / data.expires_in 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 

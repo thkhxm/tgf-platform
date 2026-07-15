@@ -285,7 +285,7 @@ func (a *Apple) fetchTransactionInfoFrom(ctx context.Context, baseURL, txID stri
 		}
 		msg := apiErr.ErrorMessage
 		if msg == "" {
-			msg = "HTTP 状态异常: " + truncate(resp.String(), 256)
+			msg = "HTTP 状态异常: " + resp.SafeSummary()
 		}
 		return "", false, errs.New(PlatformName, opGetTransactionInfo, code, msg).
 			WithHTTPStatus(resp.StatusCode).
@@ -297,7 +297,7 @@ func (a *Apple) fetchTransactionInfoFrom(ctx context.Context, baseURL, txID stri
 	}
 	if body.SignedTransactionInfo == "" {
 		return "", false, errs.New(PlatformName, opGetTransactionInfo, "",
-			"应答缺少 signedTransactionInfo 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 signedTransactionInfo 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	return body.SignedTransactionInfo, false, nil
@@ -407,7 +407,7 @@ func minorUnits(price int64, currency string) int64 {
 	}
 }
 
-// truncate 截断字符串到 n 字节（错误信息里附应答片段用，防日志爆量）。
+// truncate 截断非敏感诊断字段到 n 字节，防错误信息过长。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  GOWORK: "off"
+  GOPROXY: https://proxy.golang.org,direct
+  GOSUMDB: sum.golang.org
+
+jobs:
+  module-graph:
+    name: Validate unreleased source module graph
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.4"
+
+      - name: Check core declarations and isolated source consumer
+        shell: pwsh
+        run: ./.github/scripts/verify-module-graph.ps1 -ExpectedCoreVersion v0.1.1
+
+  modules:
+    name: ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    needs: module-graph
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - alipay
+          - apple
+          - core
+          - douyin
+          - facebook
+          - google
+          - huawei
+          - line
+          - steam
+          - taptap
+          - telegram
+          - tiktok
+          - wechat
+          - xiaomi
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.4"
+          cache: true
+          cache-dependency-path: "**/go.sum"
+
+      - name: Download dependencies
+        working-directory: ${{ matrix.module }}
+        run: go mod download
+
+      - name: Build
+        working-directory: ${{ matrix.module }}
+        run: go build ./...
+
+      - name: Vet
+        working-directory: ${{ matrix.module }}
+        run: go vet ./...
+
+      - name: Test with race detector
+        working-directory: ${{ matrix.module }}
+        run: go test -race -count=1 -timeout=10m ./...

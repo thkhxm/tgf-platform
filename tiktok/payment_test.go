@@ -503,9 +503,14 @@ func TestParseWebhookEvent(t *testing.T) {
 	})
 
 	t.Run("缺 event 字段", func(t *testing.T) {
-		body := []byte(`{"client_key":"your_client_key","content":"{}"}`)
+		const canary = "canary-tiktok-webhook-token-do-not-log"
+		body := []byte(`{"client_key":"your_client_key","access_token":"` + canary + `","content":"{}"}`)
 		if _, err := tk.ParseWebhookEvent(body); err == nil {
 			t.Fatal("期望缺 event 错误")
+		} else if strings.Contains(err.Error(), canary) {
+			t.Fatalf("缺 event 错误泄露 webhook canary: %v", err)
+		} else if !strings.Contains(err.Error(), "body_bytes=") {
+			t.Errorf("缺 event 错误缺少安全长度摘要: %v", err)
 		}
 	})
 
@@ -523,9 +528,14 @@ func TestParseWebhookEvent(t *testing.T) {
 	})
 
 	t.Run("content 缺 trade_order_id", func(t *testing.T) {
-		ev := &WebhookEvent{Event: EventTradeOrderRedeemSuccess, Content: `{"order_id":"o1"}`}
+		const canary = "canary-tiktok-content-token-do-not-log"
+		ev := &WebhookEvent{Event: EventTradeOrderRedeemSuccess, Content: `{"order_id":"o1","access_token":"` + canary + `"}`}
 		if _, err := ev.TradeOrderContent(); err == nil {
 			t.Fatal("期望缺字段错误")
+		} else if strings.Contains(err.Error(), canary) {
+			t.Fatalf("content 错误泄露 canary: %v", err)
+		} else if !strings.Contains(err.Error(), "body_bytes=") {
+			t.Errorf("content 错误缺少安全长度摘要: %v", err)
 		}
 	})
 }

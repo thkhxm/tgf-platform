@@ -233,7 +233,7 @@ func (t *Telegram) fetchStarTransactions(ctx context.Context, offset, limit int)
 	if !resp.OK() {
 		// ok=true 却非 2xx——按官方封装不该发生，视为协议异常。
 		return nil, errs.New(PlatformName, opGetStarTransactions, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}

@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/thkhxm/tgf-platform/core/errs"
+	"github.com/thkhxm/tgf-platform/core/httpx"
 )
 
 // 验签失败的哨兵错误——经 errs.Error 的 Unwrap 链暴露，业务用
@@ -170,7 +171,7 @@ func (g *Google) VerifyWebhook(r *http.Request) error {
 	var envelope pushEnvelope
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return errs.New(PlatformName, opVerifyWebhook, "",
-			"push 包体不是合法 JSON: "+truncate(string(raw), 256)).
+			"push 包体不是合法 JSON: "+httpx.SafeBodySummary(raw)).
 			WithCause(ErrWebhookBadEnvelope)
 	}
 	if envelope.Message.MessageID == "" {

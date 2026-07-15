@@ -9,6 +9,8 @@ package httpx
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +20,34 @@ import (
 	"testing"
 	"time"
 )
+
+const canarySecret = "canary-session-key-do-not-log"
+
+type echoingJSONValue struct{}
+
+func (*echoingJSONValue) UnmarshalJSON(data []byte) error {
+	return errors.New("echoed input: " + string(data))
+}
+
+var errJSONSentinel = errors.New("sentinel: " + canarySecret)
+
+type sentinelEchoingJSONError struct {
+	data string
+}
+
+func (e *sentinelEchoingJSONError) Error() string {
+	return "echoed input: " + e.data
+}
+
+func (*sentinelEchoingJSONError) Unwrap() error {
+	return errJSONSentinel
+}
+
+type sentinelEchoingJSONValue struct{}
+
+func (*sentinelEchoingJSONValue) UnmarshalJSON(data []byte) error {
+	return &sentinelEchoingJSONError{data: string(data)}
+}
 
 func TestGetMergesQueryAndHeader(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -263,14 +293,160 @@ func TestMaxBodySize(t *testing.T) {
 	}
 }
 
-func TestDecodeJSONErrorSnippet(t *testing.T) {
-	var v map[string]any
-	err := DecodeJSON([]byte("<html>bad gateway</html>"), &v)
-	if err == nil {
-		t.Fatal("非 JSON 应返回错误")
+func TestSafeSummaryRedactsResponseBody(t *testing.T) {
+	body := []byte(`{"access_token":"` + canarySecret + `"}`)
+	resp := &Response{
+		StatusCode: http.StatusUnauthorized,
+		Header: http.Header{
+			"Content-Type": {`application/json; charset=utf-8; secret="` + canarySecret + `"`},
+		},
+		Body: body,
 	}
-	if !strings.Contains(err.Error(), "<html>") {
-		t.Errorf("错误信息应附原文片段便于定位: %v", err)
+
+	summary := resp.SafeSummary()
+	if strings.Contains(summary, canarySecret) {
+		t.Fatalf("安全摘要泄露 canary secret: %s", summary)
+	}
+	for _, want := range []string{`status=401`, `content_type="json"`, `body_bytes=`} {
+		if !strings.Contains(summary, want) {
+			t.Errorf("SafeSummary() = %q，缺少 %q", summary, want)
+		}
+	}
+	// String 的原始行为是公开兼容面；修复只迁移日志/错误调用方，不改变消费语义。
+	if got := resp.String(); got != string(body) {
+		t.Errorf("String() 兼容行为改变: got %q", got)
+	}
+}
+
+func TestSafeSummaryClassifiesContentTypeWithoutEchoingRemoteTokens(t *testing.T) {
+	tests := []struct {
+		name        string
+		contentType string
+		want        string
+	}{
+		{"缺失", "", "unknown"},
+		{"JSON", "application/json; charset=utf-8", "json"},
+		{"JSON suffix", "application/problem+json", "json"},
+		{"HTML", "text/html", "html"},
+		{"XHTML", "application/xhtml+xml", "html"},
+		{"文本", "text/plain", "text"},
+		{"XML", "application/atom+xml", "xml"},
+		{"二进制", "application/octet-stream", "binary"},
+		{"二进制顶级类型", "image/png", "binary"},
+		{"其他", "application/protobuf", "other"},
+		{"canary 位于 type", canarySecret + "/json", "json"},
+		{"canary 位于 subtype", "application/" + canarySecret, "other"},
+		{"canary 位于 JSON suffix subtype", "application/" + canarySecret + "+json", "json"},
+		{"非法参数", `application/json; secret="` + canarySecret, "invalid"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			header := http.Header{}
+			if tc.contentType != "" {
+				header.Set("Content-Type", tc.contentType)
+			}
+			resp := &Response{StatusCode: http.StatusBadGateway, Header: header, Body: []byte(canarySecret)}
+			summary := resp.SafeSummary()
+			if strings.Contains(summary, canarySecret) {
+				t.Fatalf("SafeSummary() 回显远端 canary: %q", summary)
+			}
+			if want := `content_type="` + tc.want + `"`; !strings.Contains(summary, want) {
+				t.Errorf("SafeSummary() = %q，期望包含 %q", summary, want)
+			}
+			if got := safeContentType(header); got != tc.want {
+				t.Errorf("safeContentType() = %q，期望 %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDecodeJSONErrorRedactsBodyAndEchoingCause(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       []byte
+		out        any
+		wantSyntax bool
+		wantType   bool
+	}{
+		{"语法错误", []byte(`{"access_token":"` + canarySecret + `"`), &map[string]any{}, true, false},
+		{"类型错误", []byte(`{"count":"` + canarySecret + `"}`), &struct {
+			Count int `json:"count"`
+		}{}, false, true},
+		{"自定义解析器回显原文", []byte(`"` + canarySecret + `"`), &echoingJSONValue{}, false, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := DecodeJSON(tc.data, tc.out)
+			if err == nil {
+				t.Fatal("期望 JSON 解析错误")
+			}
+			for chainErr := err; chainErr != nil; chainErr = errors.Unwrap(chainErr) {
+				if strings.Contains(chainErr.Error(), canarySecret) {
+					t.Fatalf("错误链泄露 canary secret: %v", chainErr)
+				}
+			}
+			if !strings.Contains(err.Error(), SafeBodySummary(tc.data)) {
+				t.Errorf("解析错误缺少安全长度摘要: %v", err)
+			}
+			var syntaxErr *json.SyntaxError
+			if got := errors.As(err, &syntaxErr); got != tc.wantSyntax {
+				t.Errorf("errors.As(*json.SyntaxError) = %v，期望 %v", got, tc.wantSyntax)
+			}
+			var typeErr *json.UnmarshalTypeError
+			if got := errors.As(err, &typeErr); got != tc.wantType {
+				t.Errorf("errors.As(*json.UnmarshalTypeError) = %v，期望 %v", got, tc.wantType)
+			}
+			if !tc.wantSyntax && !tc.wantType && errors.Unwrap(err) != nil {
+				t.Errorf("未知自定义 cause 不应进入安全错误链: %v", errors.Unwrap(err))
+			}
+		})
+	}
+}
+
+func TestDecodeJSONErrorPreservesSentinelWithoutExposingCustomCause(t *testing.T) {
+	data := []byte(`"` + canarySecret + `"`)
+	err := DecodeJSON(data, &sentinelEchoingJSONValue{})
+	if err == nil {
+		t.Fatal("期望 JSON 解析错误")
+	}
+	if !errors.Is(err, errJSONSentinel) {
+		t.Fatal("errors.Is 应保留自定义 UnmarshalJSON 错误的 sentinel 兼容性")
+	}
+	if unwrapped := errors.Unwrap(err); unwrapped != nil {
+		t.Fatalf("未知自定义 cause 不应进入安全错误链: %v", unwrapped)
+	}
+	var customErr *sentinelEchoingJSONError
+	if errors.As(err, &customErr) {
+		t.Fatalf("errors.As 不应暴露未知自定义 cause: %v", customErr)
+	}
+	for chainErr := err; chainErr != nil; chainErr = errors.Unwrap(chainErr) {
+		if strings.Contains(chainErr.Error(), canarySecret) {
+			t.Fatalf("错误链泄露 canary secret: %v", chainErr)
+		}
+	}
+}
+
+func TestDecodeJSONSyntaxErrorDoesNotExposeInvalidCharacter(t *testing.T) {
+	data := []byte("Z" + canarySecret)
+	err := DecodeJSON(data, &map[string]any{})
+	if err == nil {
+		t.Fatal("期望 JSON 语法错误")
+	}
+	for chainErr := err; chainErr != nil; chainErr = errors.Unwrap(chainErr) {
+		if strings.Contains(chainErr.Error(), canarySecret) || strings.Contains(chainErr.Error(), "invalid character 'Z'") {
+			t.Fatalf("错误链泄露无效输入字符或正文: %v", chainErr)
+		}
+	}
+	var syntaxErr *json.SyntaxError
+	if !errors.As(err, &syntaxErr) {
+		t.Fatal("errors.As 应保留 *json.SyntaxError 类型兼容性")
+	}
+	if syntaxErr.Offset != 1 {
+		t.Fatalf("SyntaxError.Offset = %d, want 1", syntaxErr.Offset)
+	}
+	if strings.Contains(syntaxErr.Error(), "'Z'") {
+		t.Fatalf("清洗后的 SyntaxError 回显输入字符: %q", syntaxErr.Error())
 	}
 }
 

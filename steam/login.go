@@ -107,7 +107,7 @@ func (s *Steam) VerifyLogin(ctx context.Context, credential string) (*platform.P
 	// 不强行 JSON 解析，按官方状态码语义分类。
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opAuthTicket, strconv.Itoa(resp.StatusCode),
-			httpStatusHint(resp.StatusCode)+": "+truncate(resp.String(), 256)).
+			httpStatusHint(resp.StatusCode)+": "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -129,7 +129,7 @@ func (s *Steam) VerifyLogin(ctx context.Context, credential string) (*platform.P
 	}
 	if result != "" && !strings.EqualFold(result, "OK") {
 		return nil, errs.New(PlatformName, opAuthTicket, result,
-			"平台返回非 OK 结果: "+truncate(resp.String(), 256)).
+			"平台返回非 OK 结果: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 
@@ -137,7 +137,7 @@ func (s *Steam) VerifyLogin(ctx context.Context, credential string) (*platform.P
 	if steamID == "" {
 		// 200 且无 error 却缺 steamid——官方承诺有效票据返回 SteamID，视为协议异常。
 		return nil, errs.New(PlatformName, opAuthTicket, "",
-			"应答缺少 steamid 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 steamid 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 

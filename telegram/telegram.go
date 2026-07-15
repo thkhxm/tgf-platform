@@ -188,7 +188,7 @@ func (t *Telegram) botAPIURL(method string) string {
 	return httpx.JoinURL(t.cfg.BotAPIBaseURL, path+method)
 }
 
-// truncate 截断字符串到 n 字节（错误信息里附应答片段用，防日志爆量）。
+// truncate 截断非敏感诊断字段到 n 字节，防错误信息过长。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

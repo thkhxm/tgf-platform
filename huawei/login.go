@@ -191,13 +191,13 @@ func (h *Huawei) getTokenInfo(ctx context.Context, accessToken string) (*getToke
 	// （2026-06-11 拉取）：2=服务临时不可用、6=token 过期、7/8=限频——2/7/8 可重试。
 	if nsp := resp.Header.Get("NSP_STATUS"); nsp != "" && nsp != "0" {
 		return nil, errs.New(PlatformName, opGetTokenInfo, "NSP_"+nsp,
-			"开放平台错误 NSP_STATUS="+nsp+": "+truncate(resp.String(), 256)).
+			"开放平台错误 NSP_STATUS="+nsp+": "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(nsp == "2" || nsp == "7" || nsp == "8")
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opGetTokenInfo, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -215,7 +215,7 @@ func (h *Huawei) getTokenInfo(ctx context.Context, accessToken string) (*getToke
 	// 仍缺失即说明这是应用级 AT 或协议异常——登录凭据必须是用户级。
 	if info.OpenID == "" {
 		return nil, errs.New(PlatformName, opGetTokenInfo, "",
-			"应答缺少 open_id（Access Token 可能不是用户级凭据）: "+truncate(resp.String(), 256)).
+			"应答缺少 open_id（Access Token 可能不是用户级凭据）: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	return &info, nil
@@ -247,7 +247,7 @@ func (h *Huawei) postOAuthToken(ctx context.Context, form url.Values) (*oauthTok
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opOAuthToken, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}

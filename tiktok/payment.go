@@ -226,13 +226,13 @@ func (t *TikTok) CreateTradeOrder(ctx context.Context, userAccessToken string, t
 	}
 	if !resp.OK() {
 		return "", errs.New(PlatformName, opTradeOrderCreate, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.Data.TradeOrderID == "" {
 		return "", errs.New(PlatformName, opTradeOrderCreate, "",
-			"应答缺少 trade_order_id 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 trade_order_id 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	return body.Data.TradeOrderID, nil
@@ -270,13 +270,13 @@ func (t *TikTok) QueryTradeOrder(ctx context.Context, userAccessToken, tradeOrde
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opTradeOrderQuery, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.Data.TradeOrderID == "" || body.Data.TradeOrderStatus == "" {
 		return nil, errs.New(PlatformName, opTradeOrderQuery, "",
-			"应答缺少 trade_order_id / trade_order_status 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 trade_order_id / trade_order_status 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	return &TradeOrderInfo{TradeOrderID: body.Data.TradeOrderID, Status: body.Data.TradeOrderStatus}, nil
@@ -390,7 +390,7 @@ func (t *TikTok) ParseWebhookEvent(body []byte) (*WebhookEvent, error) {
 		return nil, errs.Wrap(PlatformName, opParseWebhookEvent, err)
 	}
 	if ev.Event == "" {
-		return nil, errs.New(PlatformName, opParseWebhookEvent, "", "回调体缺少 event 字段: "+truncate(string(body), 256))
+		return nil, errs.New(PlatformName, opParseWebhookEvent, "", "回调体缺少 event 字段: "+httpx.SafeBodySummary(body))
 	}
 	if ev.ClientKey != t.cfg.ClientKey {
 		return nil, errs.New(PlatformName, opParseWebhookEvent, "",
@@ -413,7 +413,7 @@ func (e *WebhookEvent) TradeOrderContent() (*TradeOrderEventContent, error) {
 	}
 	if c.TradeOrderID == "" {
 		return nil, errs.New(PlatformName, opParseWebhookEvent, "",
-			"事件 content 缺少 trade_order_id: "+truncate(e.Content, 256))
+			"事件 content 缺少 trade_order_id: "+httpx.SafeBodySummary([]byte(e.Content)))
 	}
 	return &c, nil
 }

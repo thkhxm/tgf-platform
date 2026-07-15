@@ -119,13 +119,13 @@ func (d *Douyin) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 				WithRetryable(retryableStatus(resp.StatusCode))
 		}
 		return nil, errs.New(PlatformName, opQueryPayState, "",
-			"应答缺少 status 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 status 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opQueryPayState, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}

@@ -167,7 +167,7 @@ func (d *Douyin) code2Session(ctx context.Context, creds url.Values) (*code2Sess
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opCode2Session, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}

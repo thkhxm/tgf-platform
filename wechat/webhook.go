@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/thkhxm/tgf-platform/core/errs"
+	"github.com/thkhxm/tgf-platform/core/httpx"
 	"github.com/thkhxm/tgf-platform/core/sign"
 )
 
@@ -121,7 +122,7 @@ func (w *WeChat) VerifyWebhook(r *http.Request) error {
 		encrypt, ok := extractEncrypt(raw)
 		if !ok {
 			return errs.New(PlatformName, opVerifyWebhook, "",
-				"安全模式请求体缺少 Encrypt 字段: "+truncate(string(raw), 128)).
+				"安全模式请求体缺少 Encrypt 字段: "+httpx.SafeBodySummary(raw)).
 				WithCause(ErrWebhookMissingEncrypt)
 		}
 		parts = []string{w.cfg.PushToken, timestamp, nonce, encrypt}

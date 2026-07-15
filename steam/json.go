@@ -127,8 +127,7 @@ func httpStatusHint(status int) string {
 	}
 }
 
-// truncate 截断字符串到 n 字节（错误信息里附应答片段用，防日志爆量——Steam
-// 非 2xx 时返回 HTML 错误页，实测 2026-06-11）。
+// truncate 截断非敏感诊断字段到 n 字节，防错误信息过长。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

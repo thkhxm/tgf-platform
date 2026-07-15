@@ -381,7 +381,7 @@ func (a *Alipay) callGateway(ctx context.Context, op, method string, bizParams m
 	node, ok := top[nodeKey]
 	if !ok {
 		return nil, resp.StatusCode, errs.New(PlatformName, op, "",
-			"应答缺少 "+nodeKey+" 节点: "+truncate(resp.String(), 256)).
+			"应答缺少 "+nodeKey+" 节点: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -393,7 +393,7 @@ func (a *Alipay) callGateway(ctx context.Context, op, method string, bizParams m
 	}
 	if sigB64 == "" {
 		return nil, resp.StatusCode, errs.New(PlatformName, op, "",
-			"应答缺少 sign 字段，拒绝信任: "+truncate(resp.String(), 256)).
+			"应答缺少 sign 字段，拒绝信任: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	if err := a.verifyResponseSign(node, sigB64); err != nil {
@@ -511,7 +511,7 @@ func retryableStatus(status int) bool {
 	return status == http.StatusTooManyRequests || status >= 500
 }
 
-// truncate 截断字符串到 n 字节（错误信息里附应答片段用，防日志爆量）。
+// truncate 截断非敏感诊断字段到 n 字节，防错误信息过长。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

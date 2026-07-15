@@ -187,7 +187,7 @@ func (f *Facebook) VerifyLogin(ctx context.Context, credential string) (*platfor
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opDebugToken, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -213,7 +213,7 @@ func (f *Facebook) VerifyLogin(ctx context.Context, credential string) (*platfor
 		// is_valid 且无 error 却缺 user_id——可能是 app token / page token 被
 		// 当作用户凭据传入，拒绝。
 		return nil, errs.New(PlatformName, opDebugToken, "",
-			"应答缺少 user_id（传入的可能不是用户 access token）: "+truncate(resp.String(), 256)).
+			"应答缺少 user_id（传入的可能不是用户 access token）: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 
@@ -263,7 +263,7 @@ func (f *Facebook) fillUserInfo(ctx context.Context, userToken string, identity 
 	}
 	if !resp.OK() {
 		return errs.New(PlatformName, opMe, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -289,7 +289,7 @@ func retryableStatus(status int) bool {
 	return status == 429 || status >= 500
 }
 
-// truncate 截断字符串到 n 字节（错误信息里附应答片段用，防日志爆量）。
+// truncate 截断非敏感诊断字段到 n 字节，防错误信息过长。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

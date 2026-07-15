@@ -117,7 +117,7 @@ func (x *Xiaomi) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opQueryOrder, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -133,7 +133,7 @@ func (x *Xiaomi) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 	sigHex := values["signature"]
 	if sigHex == "" {
 		return nil, errs.New(PlatformName, opQueryOrder, "",
-			"应答缺少 signature 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 signature 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	// buildSignSource 自身会排除 signature 键，values 可整表传入。

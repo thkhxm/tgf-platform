@@ -16,6 +16,7 @@ import (
 	"strconv"
 
 	"github.com/thkhxm/tgf-platform/core/errs"
+	"github.com/thkhxm/tgf-platform/core/httpx"
 	"github.com/thkhxm/tgf-platform/core/sign"
 )
 
@@ -112,7 +113,7 @@ func (t *Telegram) VerifyWebhook(r *http.Request) error {
 	var upd webhookUpdateEnvelope
 	if err := json.Unmarshal(raw, &upd); err != nil || upd.UpdateID == nil || *upd.UpdateID <= 0 {
 		return errs.New(PlatformName, opVerifyWebhook, "",
-			"回调体缺少合法 update_id: "+truncate(string(raw), 128)).
+			"回调体缺少合法 update_id: "+httpx.SafeBodySummary(raw)).
 			WithCause(ErrWebhookMalformedBody)
 	}
 	if t.seen(strconv.FormatInt(*upd.UpdateID, 10), t.cfg.WebhookReplayTTL) {

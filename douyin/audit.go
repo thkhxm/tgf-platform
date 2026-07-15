@@ -186,13 +186,13 @@ func (d *Douyin) audit(ctx context.Context, op, path string, payload map[string]
 				WithRetryable(body.Code == 401 || retryableStatus(resp.StatusCode))
 		}
 		return nil, errs.New(PlatformName, op,
-			"", "应答缺少 data 检测结果: "+truncate(resp.String(), 256)).
+			"", "应答缺少 data 检测结果: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, op, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}

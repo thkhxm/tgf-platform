@@ -3,7 +3,7 @@ module github.com/thkhxm/tgf-platform/xiaomi
 go 1.26.0
 
 require (
-	github.com/thkhxm/tgf-platform/core v0.1.0
+	github.com/thkhxm/tgf-platform/core v0.1.1
 	github.com/thkhxm/tgf/v2 v2.1.0
 )
 
@@ -36,6 +36,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
 
-// 本地联编：core 尚未发布 core/v0.1.0 tag 前，对它的 require 在本 module 内 replace
-// 到同仓库 ../core 目录（path replace 只在本主模块生效，依赖方忽略）。core 打 tag 后删除本行。
+// 仓库开发联编：保留 module-local replace 指向 sibling core；它不能证明 require 的
+// v0.1.1 已公开发布。CI 会独立校验版本声明；发布顺序必须是 core tag → 平台 tag。
 replace github.com/thkhxm/tgf-platform/core => ../core

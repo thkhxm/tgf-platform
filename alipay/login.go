@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 
 	"github.com/thkhxm/tgf-platform/core/errs"
+	"github.com/thkhxm/tgf-platform/core/httpx"
 	"github.com/thkhxm/tgf/v2/platform"
 )
 
@@ -125,7 +126,7 @@ func (a *Alipay) VerifyLogin(ctx context.Context, credential string) (*platform.
 	if body.AccessToken == "" || (body.UserID == "" && body.OpenID == "") {
 		// 验签通过却缺关键字段——按官方文档这不该发生，视为协议异常。
 		return nil, errs.New(PlatformName, opOAuthToken, "",
-			"应答缺少 access_token / user_id / open_id 字段: "+truncate(string(node), 256)).
+			"应答缺少 access_token / user_id / open_id 字段: "+httpx.SafeBodySummary(node)).
 			WithHTTPStatus(status)
 	}
 

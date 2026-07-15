@@ -153,7 +153,7 @@ func (s *Steam) VerifyPayment(ctx context.Context, receipt platform.PaymentRecei
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opQueryTxn, strconv.Itoa(resp.StatusCode),
-			httpStatusHint(resp.StatusCode)+": "+truncate(resp.String(), 256)).
+			httpStatusHint(resp.StatusCode)+": "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -176,7 +176,7 @@ func (s *Steam) VerifyPayment(ctx context.Context, receipt platform.PaymentRecei
 	if p.Status == "" {
 		// result=OK 却缺 status——按官方文档不该发生，视为协议异常，宁可失败不可误发货。
 		return nil, errs.New(PlatformName, opQueryTxn, "",
-			"应答缺少 status 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 status 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	// 防串单：业务给了付款用户的 SteamID 时必须与平台应答一致。
@@ -269,7 +269,7 @@ func (s *Steam) FinalizeTxn(ctx context.Context, orderID string) (*FinalizeTxnRe
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opFinalizeTxn, strconv.Itoa(resp.StatusCode),
-			httpStatusHint(resp.StatusCode)+": "+truncate(resp.String(), 256)).
+			httpStatusHint(resp.StatusCode)+": "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 

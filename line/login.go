@@ -148,14 +148,14 @@ func (l *Line) VerifyLogin(ctx context.Context, credential string) (*platform.Pl
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opVerifyIDToken, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.Sub == "" {
 		// 200 且无 error 却缺关键字段——按官方文档这不该发生，视为协议异常。
 		return nil, errs.New(PlatformName, opVerifyIDToken, "",
-			"应答缺少 sub 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 sub 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	// 防御性双查（平台 verify 已各自校验过 iss / aud / exp，这里宁严勿松，

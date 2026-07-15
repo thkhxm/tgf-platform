@@ -201,20 +201,20 @@ func (t *TapTap) decodeAccountResp(op string, resp *httpx.Response) (*platform.P
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, op, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	// 包封形态 success=false 却没带错误码——协议异常，宁可失败不可错认成功。
 	if env.Success != nil && !*env.Success {
 		return nil, errs.New(PlatformName, op, "",
-			"应答 success=false 且无错误码: "+truncate(resp.String(), 256)).
+			"应答 success=false 且无错误码: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	if payload.OpenID == "" {
 		// 200 且无 error 却缺关键字段——按官方文档这不该发生，视为协议异常。
 		return nil, errs.New(PlatformName, op, "",
-			"应答缺少 openid 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 openid 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 
@@ -257,7 +257,7 @@ func retryableStatus(status int) bool {
 	return status == http.StatusTooManyRequests || status >= 500
 }
 
-// truncate 截断字符串到 n 字节（错误信息里附应答片段用，防日志爆量）。
+// truncate 截断非敏感诊断字段到 n 字节，防错误信息过长。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

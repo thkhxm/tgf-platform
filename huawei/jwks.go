@@ -101,7 +101,7 @@ func (h *Huawei) fetchJWKS(ctx context.Context) (map[string]*rsa.PublicKey, erro
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opFetchJWKS, strconv.Itoa(resp.StatusCode),
-			"openid-configuration HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"openid-configuration HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -120,7 +120,7 @@ func (h *Huawei) fetchJWKS(ctx context.Context) (map[string]*rsa.PublicKey, erro
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opFetchJWKS, strconv.Itoa(resp.StatusCode),
-			"jwks_uri HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"jwks_uri HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -143,7 +143,7 @@ func (h *Huawei) fetchJWKS(ctx context.Context) (map[string]*rsa.PublicKey, erro
 	}
 	if len(keys) == 0 {
 		return nil, errs.New(PlatformName, opFetchJWKS, "",
-			"JWKS 中没有可用的 RSA 公钥: "+truncate(resp.String(), 256))
+			"JWKS 中没有可用的 RSA 公钥: "+resp.SafeSummary())
 	}
 	return keys, nil
 }

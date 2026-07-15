@@ -143,8 +143,10 @@ func TestVerifyLogin(t *testing.T) {
 	})
 
 	t.Run("应答缺少sign", func(t *testing.T) {
+		const canary = "canary-alipay-access-token-do-not-log"
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, `{"%s":%s}`, respNodeKey(methodOAuthToken), oauthTokenNode("2088102150477652", ""))
+			node := fmt.Sprintf(`{"access_token":%q,"user_id":"2088102150477652"}`, canary)
+			fmt.Fprintf(w, `{"%s":%s}`, respNodeKey(methodOAuthToken), node)
 		}))
 		defer srv.Close()
 		a := newTestAlipay(t, srv.URL, nil)
@@ -153,11 +155,18 @@ func TestVerifyLogin(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "缺少 sign") {
 			t.Fatalf("期望缺少 sign 报错, got %v", err)
 		}
+		if strings.Contains(err.Error(), canary) {
+			t.Fatalf("缺 sign 错误泄露 canary secret: %v", err)
+		}
+		if !strings.Contains(err.Error(), "body_bytes=") {
+			t.Errorf("缺 sign 错误缺少安全长度摘要: %v", err)
+		}
 	})
 
 	t.Run("应答缺少关键字段", func(t *testing.T) {
+		const canary = "canary-alipay-refresh-token-do-not-log"
 		srv := newMockGateway(t, func(t *testing.T, r *http.Request, params url.Values) (string, string) {
-			return respNodeKey(methodOAuthToken), `{"expires_in":"3600"}`
+			return respNodeKey(methodOAuthToken), `{"access_token":"present","refresh_token":"` + canary + `","expires_in":"3600"}`
 		})
 		defer srv.Close()
 		a := newTestAlipay(t, srv.URL, nil)
@@ -165,6 +174,12 @@ func TestVerifyLogin(t *testing.T) {
 		_, err := a.VerifyLogin(context.Background(), testAuthCode)
 		if err == nil || !strings.Contains(err.Error(), "缺少 access_token") {
 			t.Fatalf("期望缺字段报错, got %v", err)
+		}
+		if strings.Contains(err.Error(), canary) {
+			t.Fatalf("缺字段错误泄露 canary secret: %v", err)
+		}
+		if !strings.Contains(err.Error(), "body_bytes=") {
+			t.Errorf("缺字段错误缺少安全长度摘要: %v", err)
 		}
 	})
 

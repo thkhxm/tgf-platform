@@ -22,8 +22,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"strings"
@@ -156,9 +158,31 @@ func (r *Response) OK() bool {
 	return r.StatusCode >= 200 && r.StatusCode < 300
 }
 
-// String 返回响应体的字符串形式（日志/报错用）。
+// String 返回原始响应体的字符串形式。
+//
+// 兼容性说明：该方法保留原有行为，供确实需要消费响应体的调用方使用；响应体
+// 可能包含 access_token、session_key 等凭据，严禁把返回值拼入错误或日志。
+// 需要诊断信息时使用 SafeSummary。
 func (r *Response) String() string {
 	return string(r.Body)
+}
+
+// SafeSummary 返回不含响应体原文的诊断摘要。
+//
+// Content-Type 只输出有限的安全类别，不回显远端提供的 type、subtype 或参数；长度
+// 使用实际读入的 Body 字节数，不信任远端 Content-Length。该摘要可安全用于错误
+// 和日志，但仍不应追加 Header 或 Body 原文。
+func (r *Response) SafeSummary() string {
+	if r == nil {
+		return `status=0 content_type="unknown" body_bytes=0`
+	}
+	return fmt.Sprintf("status=%d content_type=%q %s", r.StatusCode, safeContentType(r.Header), SafeBodySummary(r.Body))
+}
+
+// SafeBodySummary 返回不含 body 原文的长度摘要，适合解析 incoming webhook、
+// JWT payload 或其他不带 HTTP Response 元数据的非受信载荷时使用。
+func SafeBodySummary(body []byte) string {
+	return fmt.Sprintf("body_bytes=%d", len(body))
 }
 
 // JSON 把响应体反序列化到 v（v 须为指针）。
@@ -166,17 +190,104 @@ func (r *Response) JSON(v any) error {
 	return DecodeJSON(r.Body, v)
 }
 
-// DecodeJSON 反序列化 JSON，失败时在错误信息里附原文片段（截断到 512 字节），
-// 便于定位平台返回了 HTML 错误页 / 非 JSON 应答这类问题。
+// DecodeJSON 反序列化 JSON。已知安全的标准错误保留 Unwrap 链供 errors.As
+// 使用；未知错误不保留原始 cause。错误文本只包含安全的错误分类/偏移与 body
+// 长度，不包含原文或自定义 UnmarshalJSON 错误可能回显的凭据。
 func DecodeJSON(data []byte, v any) error {
 	if err := json.Unmarshal(data, v); err != nil {
-		snippet := data
-		if len(snippet) > 512 {
-			snippet = snippet[:512]
+		detail, safeCause := classifyJSONError(err)
+		return &decodeJSONError{
+			cause:      safeCause,
+			matchCause: err,
+			detail:     detail,
+			bodyBytes:  len(data),
 		}
-		return fmt.Errorf("httpx: JSON 解析失败: %w（原文片段: %s）", err, snippet)
 	}
 	return nil
+}
+
+// decodeJSONError 安全展示解析失败，并仅保留经过分类或清洗的 cause。
+type decodeJSONError struct {
+	cause      error
+	matchCause error
+	detail     string
+	bodyBytes  int
+}
+
+func (e *decodeJSONError) Error() string {
+	return fmt.Sprintf("httpx: JSON 解析失败（%s，body_bytes=%d）", e.detail, e.bodyBytes)
+}
+
+func (e *decodeJSONError) Unwrap() error {
+	return e.cause
+}
+
+// Is 保留 DecodeJSON 原先通过 %w 提供的 sentinel 匹配语义。matchCause 只参与
+// errors.Is 判定，不经 Unwrap 或 As 暴露，避免未知自定义错误回显原始载荷。
+func (e *decodeJSONError) Is(target error) bool {
+	return errors.Is(e.matchCause, target)
+}
+
+func classifyJSONError(err error) (detail string, safeCause error) {
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		// SyntaxError.Error may echo the invalid input character. Preserve the
+		// public error type and offset for errors.As without retaining its message.
+		safeSyntaxErr := &json.SyntaxError{Offset: syntaxErr.Offset}
+		return fmt.Sprintf("syntax_error_at=%d", syntaxErr.Offset), safeSyntaxErr
+	}
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		detail := fmt.Sprintf("type_error_at=%d target=%s", typeErr.Offset, typeErr.Type)
+		if typeErr.Field != "" {
+			detail += fmt.Sprintf(" field=%q", typeErr.Field)
+		}
+		// UnmarshalTypeError.Value 对 number 会带原始数值；只保留首个类型词，
+		// 再构造安全副本放入错误链，确保 errors.As 可用但链内无载荷原文。
+		safeTypeErr := *typeErr
+		valueFields := strings.Fields(typeErr.Value)
+		if len(valueFields) == 0 {
+			safeTypeErr.Value = "unknown"
+		} else {
+			safeTypeErr.Value = valueFields[0]
+		}
+		return detail, &safeTypeErr
+	}
+	// 自定义 UnmarshalJSON 错误可能直接把 data 拼进 Error()；未知 cause 仅记录
+	// 静态 Go 类型，不把原错误对象挂入 Unwrap 链。
+	return fmt.Sprintf("cause_type=%T", err), nil
+}
+
+func safeContentType(header http.Header) string {
+	if header == nil || strings.TrimSpace(header.Get("Content-Type")) == "" {
+		return "unknown"
+	}
+	mediaType, _, err := mime.ParseMediaType(header.Get("Content-Type"))
+	if err != nil || mediaType == "" {
+		return "invalid"
+	}
+	mediaType = strings.ToLower(mediaType)
+	typeAndSubtype := strings.SplitN(mediaType, "/", 2)
+	if len(typeAndSubtype) != 2 || typeAndSubtype[0] == "" || typeAndSubtype[1] == "" {
+		return "invalid"
+	}
+	topLevel, subtype := typeAndSubtype[0], typeAndSubtype[1]
+
+	switch {
+	case subtype == "json" || strings.HasSuffix(subtype, "+json"):
+		return "json"
+	case mediaType == "text/html" || mediaType == "application/xhtml+xml":
+		return "html"
+	case subtype == "xml" || strings.HasSuffix(subtype, "+xml"):
+		return "xml"
+	case topLevel == "text":
+		return "text"
+	case topLevel == "image", topLevel == "audio", topLevel == "video",
+		topLevel == "font", topLevel == "model", mediaType == "application/octet-stream":
+		return "binary"
+	default:
+		return "other"
+	}
 }
 
 // Get 发送 GET 请求。query 追加到 rawURL 已有查询参数之后（同名共存）；

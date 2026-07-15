@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/thkhxm/tgf-platform/core/errs"
+	"github.com/thkhxm/tgf-platform/core/httpx"
 	"github.com/thkhxm/tgf-platform/core/sign"
 	"github.com/thkhxm/tgf/v2/platform"
 )
@@ -144,7 +145,7 @@ func (f *Facebook) VerifyPayment(_ context.Context, receipt platform.PaymentRece
 	var payload signedPaymentPayload
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return nil, errs.New(PlatformName, opVerifyPayment, "",
-			"载荷 JSON 解析失败: "+err.Error()+"（原文片段: "+truncate(string(payloadBytes), 256)+"）").
+			"载荷 JSON 解析失败: "+err.Error()+"（"+httpx.SafeBodySummary(payloadBytes)+"）").
 			WithCause(ErrSignedRequestMalformed)
 	}
 

@@ -224,7 +224,7 @@ func (w *WeChat) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opQueryOrder, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}

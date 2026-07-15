@@ -162,14 +162,14 @@ func (t *TikTok) VerifyLogin(ctx context.Context, credential string) (*platform.
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opOAuthToken, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.AccessToken == "" || body.OpenID == "" {
 		// 200 且无 error 却缺关键字段——按官方文档这不该发生，视为协议异常。
 		return nil, errs.New(PlatformName, opOAuthToken, "",
-			"应答缺少 access_token / open_id 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 access_token / open_id 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 
@@ -223,7 +223,7 @@ func (t *TikTok) fillUserInfo(ctx context.Context, userAccessToken string, ident
 	}
 	if !resp.OK() {
 		return errs.New(PlatformName, opUserInfo, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -243,7 +243,7 @@ func retryableStatus(status int) bool {
 	return status == http.StatusTooManyRequests || status >= 500
 }
 
-// truncate 截断字符串到 n 字节（错误信息里附应答片段用，防日志爆量）。
+// truncate 截断非敏感诊断字段到 n 字节，防错误信息过长。
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s

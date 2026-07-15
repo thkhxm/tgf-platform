@@ -130,13 +130,13 @@ func (s *saTokenSource) accessToken(ctx context.Context) (string, error) {
 	}
 	if !resp.OK() {
 		return "", errs.New(PlatformName, opServiceAccountToken, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.AccessToken == "" || body.ExpiresIn <= 0 {
 		return "", errs.New(PlatformName, opServiceAccountToken, "",
-			"应答缺少 access_token / expires_in 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 access_token / expires_in 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 
@@ -291,7 +291,7 @@ func (g *Google) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 				WithRetryable(retryableStatus(resp.StatusCode))
 		}
 		return nil, errs.New(PlatformName, opProductsGet, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -304,7 +304,7 @@ func (g *Google) VerifyPayment(ctx context.Context, receipt platform.PaymentRece
 	// 宁可失败绝不猜测（0 值陷阱：缺失误读为 0 就是误判已支付）。
 	if pp.PurchaseState == nil {
 		return nil, errs.New(PlatformName, opProductsGet, "",
-			"应答缺少 purchaseState 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 purchaseState 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	// 货不对板：应答 productId 存在时必须与请求一致（路径已钉死 productId，

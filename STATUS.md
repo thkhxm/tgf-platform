@@ -1,13 +1,13 @@
 # 平台接入验证状态
 
 > 本表记录每个平台 module 的实现与**验证**状态。
-> ⚠️ **「真凭据验证」= 用平台真实/沙箱凭据跑通一次真实请求**（§2.8：`go build` 通过 ≠ 协议正确）。
+> ⚠️ **「真凭据验证」= 用平台真实/官方沙箱凭据跑通一次真实请求**；`go build` 或 mock 单测通过 ≠ 协议正确。
 > 未经真凭据验证的 module 标记为「⚠️ 未实测」，使用方接入前请自行用真凭据复核一次，
 > 发现问题请按 [issue 流程](https://github.com/thkhxm/tgf/blob/master/doc/issue-workflow.md) 反馈。
 
-> 全部协议均已在 2026-06-11 经本机代理 `curl` **直连官方文档**逐字段核对（每个 endpoint 代码注释附官方 URL+日期）。
+> 文档证据：协议曾在 2026-06-11 经本机代理 `curl` **直连官方文档**逐字段核对（每个 endpoint 代码注释附官方 URL+日期）。这是文档审阅证据，不是真实凭据 E2E。
 
-## 能力矩阵（13 平台 + core）
+## 能力矩阵（13 平台 + core，共 14 个 module）
 
 | module | Login | Payment | Webhook | Audit | 单测 | 编译 | 真凭据验证 |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|---|
@@ -27,10 +27,23 @@
 | `steam` | ✅ | ✅ | ✕ | ✕ | ✅ | ✅ | ⚠️ 未实测 |
 
 - ✕=该平台无对应 server API/无此机制（各 module `doc.go` 已说明）；NEEDS-DOC=需更多官方文档/后台凭据才能落地（已写明缺什么，未编造）。
-- 单测均为 httptest mock；每个 module 的 `doc.go` 含官方 endpoint 清单+文档链接+协议纪律+NEEDS-DOC+真凭据验证步骤。
+- “单测 ✅”表示 unit/mock 层通过：平台网络路径使用 `httptest`，签名/JWT 等使用本地重算或固定 fixture；不会访问真实平台，也不升级为真凭据证据。
+- “编译 ✅”表示 module 可编译且能力接口断言成立；不证明后台开关、endpoint、SKU、金额单位或真实应答形态正确。
+- 每个 module 的 `doc.go` 含官方 endpoint 清单、文档链接、协议纪律、NEEDS-DOC 与真凭据验证步骤。
 - tiktok / taptap / alipay 的详细说明见下方章节，其余平台见各自 `doc.go`。
 
-## 各平台真凭据验证所需（接入时填 `.env`，绝不入库）
+### 证据等级
+
+| 等级 | 能证明 | 不能证明 |
+|---|---|---|
+| L1 静态/编译 | build、vet、接口形状与基本静态约束 | 平台协议或线上行为 |
+| L2 unit/mock | 本地协议分支、签验、解析与错误路径 | 真实 endpoint、凭据权限、控制台配置与回调投递 |
+| L3 真实/沙箱凭据 E2E | 对应平台与能力在记录环境的一次真实链路 | 未覆盖能力、其它区域/SKU 或未来协议变更 |
+
+只有留存平台、能力、环境、时间与脱敏结果的 L3 证据，才能把“真凭据验证”从
+“⚠️ 未实测”改为已验证。当前矩阵保留未实测状态，不用 L1/L2 推断 L3。
+
+## 各平台真凭据验证所需（经业务配置/部署 Secret 注入，绝不入库）
 
 | 平台 | 凭据（沙箱即可） | 平台 | 凭据 |
 |---|---|---|---|
@@ -43,6 +56,11 @@
 | taptap | Client ID + Token + 真机 kid/mac_key | | |
 
 > 含 Webhook 的平台：默认防重放为单机内存实现，多实例部署须经各平台 `Config.WebhookSeen` 注入共享存储（Redis `SET NX EX`）。
+> 本地 `.env` 只能作为被忽略的开发载体；生产凭据应由密钥管理系统或部署 Secret
+> 注入业务配置，再显式传给平台 `New(Config)`。验证日志不得包含 token、receipt、
+> webhook body、签名头或 `core/httpx.Response.String()`；HTTP 诊断只记录
+> `Response.SafeSummary()` 的 status、有限 Content-Type 类别与 body 字节数；远端
+> type、subtype、参数和响应体原文都不会进入摘要。
 
 ## tiktok（协议已直连官方文档核对，⚠️ 真凭据未实测）
 

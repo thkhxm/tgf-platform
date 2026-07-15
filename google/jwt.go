@@ -128,7 +128,7 @@ func (c *jwksCache) fetchLocked(ctx context.Context) error {
 	}
 	if !resp.OK() {
 		return errs.New(PlatformName, "jwks", strconv.Itoa(resp.StatusCode),
-			"JWKS 端点 HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"JWKS 端点 HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
@@ -150,7 +150,7 @@ func (c *jwksCache) fetchLocked(ctx context.Context) error {
 		keys[k.Kid] = pub
 	}
 	if len(keys) == 0 {
-		return errs.New(PlatformName, "jwks", "", "JWKS 应答中没有可用的 RS256 公钥: "+truncate(resp.String(), 256))
+		return errs.New(PlatformName, "jwks", "", "JWKS 应答中没有可用的 RS256 公钥: "+resp.SafeSummary())
 	}
 	c.keys = keys
 	maxAge := jwksDefaultMaxAge
@@ -285,7 +285,7 @@ func (g *Google) verifyGoogleJWT(ctx context.Context, op, token string) (*google
 	}
 	var header jwtHeader
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
-		return nil, errs.New(PlatformName, op, "", "JWT header 解析失败: "+truncate(string(headerJSON), 128)).
+		return nil, errs.New(PlatformName, op, "", "JWT header 解析失败: "+httpx.SafeBodySummary(headerJSON)).
 			WithCause(ErrJWTMalformed)
 	}
 	// alg 白名单：Google 只用 RS256（见 ErrJWTUnexpectedAlg 注释）。
@@ -321,7 +321,7 @@ func (g *Google) verifyGoogleJWT(ctx context.Context, op, token string) (*google
 	}
 	var claims googleJWTClaims
 	if err := json.Unmarshal(claimsJSON, &claims); err != nil {
-		return nil, errs.New(PlatformName, op, "", "JWT claims 解析失败: "+truncate(string(claimsJSON), 256)).
+		return nil, errs.New(PlatformName, op, "", "JWT claims 解析失败: "+httpx.SafeBodySummary(claimsJSON)).
 			WithCause(ErrJWTMalformed)
 	}
 

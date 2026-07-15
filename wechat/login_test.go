@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/thkhxm/tgf-platform/core/errs"
@@ -238,6 +239,41 @@ func TestVerifyLoginErrors(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("错误不回显响应凭据", func(t *testing.T) {
+		const canary = "canary-wechat-session-key-do-not-log"
+		cases := []struct {
+			name   string
+			status int
+			body   string
+		}{
+			{"HTTP 状态异常", http.StatusBadGateway, `{"openid":"o1","session_key":"` + canary + `"}`},
+			{"成功应答缺字段", http.StatusOK, `{"session_key":"` + canary + `"}`},
+			{"非 JSON 应答", http.StatusBadGateway, `<html>` + canary + `</html>`},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", `application/json; charset=utf-8`)
+					w.WriteHeader(tc.status)
+					_, _ = w.Write([]byte(tc.body))
+				}))
+				defer srv.Close()
+
+				wc := newTestWeChat(t, srv.URL, nil)
+				_, err := wc.VerifyLogin(context.Background(), "code-x")
+				if err == nil {
+					t.Fatal("期望返回错误")
+				}
+				if strings.Contains(err.Error(), canary) {
+					t.Fatalf("错误泄露 canary secret: %v", err)
+				}
+				if !strings.Contains(err.Error(), "body_bytes=") {
+					t.Errorf("错误缺少安全长度摘要: %v", err)
+				}
+			})
+		}
+	})
 
 	t.Run("空 credential 不发请求", func(t *testing.T) {
 		called := false

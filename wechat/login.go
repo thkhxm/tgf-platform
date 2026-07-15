@@ -96,14 +96,14 @@ func (w *WeChat) VerifyLogin(ctx context.Context, credential string) (*platform.
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opCode2Session, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.OpenID == "" || body.SessionKey == "" {
 		// errcode==0 却缺关键字段——按官方文档这不该发生，视为协议异常。
 		return nil, errs.New(PlatformName, opCode2Session, "",
-			"应答缺少 openid / session_key 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 openid / session_key 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 

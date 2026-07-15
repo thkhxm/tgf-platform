@@ -162,13 +162,13 @@ func (w *WeChat) AuditText(ctx context.Context, openID, text string) (*platform.
 	}
 	if !resp.OK() {
 		return nil, errs.New(PlatformName, opMsgSecCheck, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.Result.Suggest == "" {
 		return nil, errs.New(PlatformName, opMsgSecCheck, "",
-			"应答缺少 result.suggest 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 result.suggest 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 
@@ -262,13 +262,13 @@ func (w *WeChat) AuditMediaAsync(ctx context.Context, openID, mediaURL string, m
 	}
 	if !resp.OK() {
 		return "", errs.New(PlatformName, opMediaCheckAsync, strconv.Itoa(resp.StatusCode),
-			"HTTP 状态异常: "+truncate(resp.String(), 256)).
+			"HTTP 状态异常: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode).
 			WithRetryable(retryableStatus(resp.StatusCode))
 	}
 	if body.TraceID == "" {
 		return "", errs.New(PlatformName, opMediaCheckAsync, "",
-			"应答缺少 trace_id 字段: "+truncate(resp.String(), 256)).
+			"应答缺少 trace_id 字段: "+resp.SafeSummary()).
 			WithHTTPStatus(resp.StatusCode)
 	}
 	return body.TraceID, nil
